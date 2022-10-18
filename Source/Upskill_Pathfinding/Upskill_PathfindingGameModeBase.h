@@ -13,5 +13,11 @@ UCLASS()
 class UPSKILL_PATHFINDING_API AUpskill_PathfindingGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
+public: 
+	virtual void BeginPlay() override;
 	
+#pragma region Properties
+	UPROPERTY(EditAnywhere, Category = "Core")
+		TSubclassOf<AActor>MapCore;
+#pragma endregion
 };
