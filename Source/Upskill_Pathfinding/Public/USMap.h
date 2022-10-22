@@ -6,6 +6,16 @@
 #include "GameFramework/Actor.h"
 #include "USMap.generated.h"
 
+
+UENUM(BlueprintType)
+enum EPathfindingMethod
+{
+	PATHFIND_None UMETA(DisplayName = "None"),
+	PATHFIND_AStar UMETA(DisplayName = "A*"),
+	PATHFIND_Jump UMETA(DisplayName = "Jump Point Search"),
+	PATHFIND_Flow UMETA(DisplayName = "Flowfields")
+};
+
 UCLASS()
 class UPSKILL_PATHFINDING_API AUSMap : public AActor
 {
@@ -17,7 +27,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Core")
 		TSubclassOf<AActor>Tile;
 
+	UPROPERTY(EditAnywhere, Category = "Path")
+		TEnumAsByte<EPathfindingMethod> pathingMethod;
+	UPROPERTY(EditAnywhere, Category = "Path")
+		FVector2D destinationNoiseRanges;
 
+	UPROPERTY(EditAnywhere, Category = "Map Definition")
+		FString MapFilePath;
 	UPROPERTY(EditAnywhere, Category = "Map Definition")
 		FVector2D MapSize;
 	UPROPERTY(EditAnywhere, Category = "Map Definition")
@@ -27,6 +43,7 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	TArray<FString> ReadStringFromFile(FString FilePath);
 
 public:	
 	// Sets default values for this actor's properties
@@ -34,5 +51,11 @@ public:
 
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	void RegisterAgent(AActor* aAgent);
+	void StartPathGen(FVector2D vPathTarget);
+
+private:
+	TArray<AActor*> agents;
 
 };
