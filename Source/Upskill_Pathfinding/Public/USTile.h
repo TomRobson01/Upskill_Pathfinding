@@ -16,6 +16,16 @@ enum ETileType
 	TILE_Trees UMETA(DisplayName = "Trees")
 };
 
+UENUM(BlueprintType)
+enum ETileDirection
+{
+	DIR_None UMETA(DisplayName = "None"),
+	DIR_Up UMETA(DisplayName = "Up"),
+	DIR_Down UMETA(DisplayName = "Down"),
+	DIR_Left UMETA(DisplayName = "Left"),
+	DIR_Right UMETA(DisplayName = "Right")
+};
+
 UCLASS()
 class UPSKILL_PATHFINDING_API AUSTile : public AActor
 {
@@ -39,17 +49,35 @@ public:
 	AUSTile();
 
 	void SetupTile(AUSMap* aParentMap, int iTypeID);
+	void AttemptTileConnect(AUSTile* aTargetTile, ETileDirection eDirection);
+	ETileDirection GetDirectionToTile(AUSTile* aTargetTile);
+	ETileType GetTileType() { return tileType;  };
+
+	ETileDirection GetJumpLeft(ETileDirection eJumpDir);
+	ETileDirection GetJumpRight(ETileDirection eJumpDir);
+	AUSTile* GetTileInDirection(ETileDirection eDirection);
 
 	UFUNCTION(BlueprintCallable, Category = "US Tile")
 	void SendPathDesitnationNotify();
 
+	TArray<AUSTile*> GetAdjacentTiles() { return adjacentTiles; };
+
+
+	AUSTile* upTile;
+	AUSTile* downTile;
+	AUSTile* leftTile;
+	AUSTile* rightTile;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	TEnumAsByte<ETileType> tileType;
 
 private:
 	AUSMap* parentMap;	
 
 	UStaticMeshComponent* TileArtSMComponent;
-	TEnumAsByte<ETileType> tileType;
+
+	TArray<AUSTile*> adjacentTiles;
+
 };

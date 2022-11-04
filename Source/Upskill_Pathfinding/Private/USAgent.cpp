@@ -24,8 +24,9 @@ void AUSAgent::BeginPlay()
 /// Handle any external ref setup.
 /// </summary>
 /// <param name="aMap">Pointer to parent map.</param>
-void AUSAgent::SetupAgent(AUSMap* aMap)
+void AUSAgent::SetupAgent(AUSMap* aMap, AActor* aStartTile)
 {
+	currentTile = aStartTile;
 	map = aMap;
 	map->RegisterAgent(this);
 }
@@ -93,9 +94,12 @@ void AUSAgent::DrawPathViz()
 	FVector2D lastPoint = path[0];
 	for (FVector2D p : path)
 	{
-		AActor* marker = GetWorld()->SpawnActor(PathMarker);
-		marker->SetActorLocation(FVector(p.X, p.Y, 0));
-		pathMarkers.Push(marker);
+		if (p == path[0] || p == path.Last())
+		{
+			AActor* marker = GetWorld()->SpawnActor(PathMarker);
+			marker->SetActorLocation(FVector(p.X, p.Y, 0));
+			pathMarkers.Push(marker);
+		}
 		DrawDebugLine(GetWorld(), FVector(lastPoint.X, lastPoint.Y, debugLineHeight), FVector(p.X, p.Y, debugLineHeight), FColor::Purple, true);
 		lastPoint = p;
 	}

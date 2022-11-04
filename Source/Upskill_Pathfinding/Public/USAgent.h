@@ -30,9 +30,11 @@ public:
 	// Sets default values for this actor's properties
 	AUSAgent();
 
-	void SetupAgent(AUSMap* aMap);
+	void SetupAgent(AUSMap* aMap, AActor* aStartTile);
 	void NavigatePath(float fDeltaTime);
-	void SetPath(TArray<FVector2D> vPath) { path = vPath; currentPathIndex = 0; DrawPathViz(); }
+	void SetPath(TArray<FVector2D> vPath, AActor* aDestinationTile) { path = vPath; currentPathIndex = 0; currentTile = aDestinationTile; DrawPathViz(); }
+
+	AActor* currentTile;
 
 protected:
 	// Called when the game starts or when spawned

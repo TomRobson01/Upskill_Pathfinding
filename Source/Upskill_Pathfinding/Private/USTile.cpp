@@ -2,6 +2,7 @@
 
 
 #include "USTile.h"
+#include "DrawDebugHelpers.h"
 
 
 // Sets default values
@@ -57,7 +58,7 @@ void AUSTile::SetupTile(AUSMap* aParentMap, int iTypeID)
 
 		// Cast to the correct class and run any setup
 		agentClass = Cast<AUSAgent>(a);
-		agentClass->SetupAgent(aParentMap);
+		agentClass->SetupAgent(aParentMap, this);
 
 		break;
 
@@ -76,9 +77,114 @@ void AUSTile::SendPathDesitnationNotify()
 {
 	if (tileType != ETileType::TILE_Trees)
 	{
-		FVector loc = GetActorLocation();
-		FVector2D dest = FVector2D(loc.X, loc.Y);
-		parentMap->StartPathGen(dest);
+		parentMap->StartPathGen(this);
 	}
 }
 
+void AUSTile::AttemptTileConnect(AUSTile* aTargetTile, ETileDirection eDirection)
+{
+	if (adjacentTiles.Contains(aTargetTile) || aTargetTile->tileType == ETileType::TILE_Trees || tileType == ETileType::TILE_Trees)
+	{
+		// Cannot make this tile adjacent
+		return;
+	}
+	adjacentTiles.Push(aTargetTile);
+
+
+	// Draw the debug line to visualize connections
+	FVector myLoc = GetActorLocation();
+	FVector adjLoc = aTargetTile->GetActorLocation();
+	//DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::White, true, -1.f, (uint8)'\000', 5.f);
+
+
+	// Asign it to the right direction variable for easier access
+	switch (eDirection)
+	{
+	case ETileDirection::DIR_Up:
+		upTile = aTargetTile;
+		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::White, true, -1.f, (uint8)'\000', 5.f);
+		break;
+	case ETileDirection::DIR_Down:
+		downTile = aTargetTile;
+		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Blue, true, -1.f, (uint8)'\000', 5.f);
+		break;
+	case ETileDirection::DIR_Left:
+		leftTile = aTargetTile;
+		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Red, true, -1.f, (uint8)'\000', 5.f);
+		break;
+	case ETileDirection::DIR_Right:
+		rightTile = aTargetTile;
+		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Green, true, -1.f, (uint8)'\000', 5.f);
+		break;
+	default:
+		break;
+	}
+}
+
+ETileDirection AUSTile::GetDirectionToTile(AUSTile* aTargetTile)
+{
+	if (aTargetTile == leftTile)
+		return ETileDirection::DIR_Left;
+	if (aTargetTile == rightTile)
+		return ETileDirection::DIR_Right;
+	if (aTargetTile == upTile)
+		return ETileDirection::DIR_Up;
+	if (aTargetTile == downTile)
+		return ETileDirection::DIR_Down;
+
+	return ETileDirection::DIR_None;
+}
+
+ETileDirection AUSTile::GetJumpLeft(ETileDirection eJumpDir)
+{
+	switch (eJumpDir)
+	{
+	case ETileDirection::DIR_Up:
+		return DIR_Left;
+	case ETileDirection::DIR_Down:
+		return DIR_Right;
+	case ETileDirection::DIR_Left:
+		return DIR_Down;
+	case ETileDirection::DIR_Right:
+		return DIR_Up;
+	default:
+		return DIR_None;
+	}
+}
+
+ETileDirection AUSTile::GetJumpRight(ETileDirection eJumpDir)
+{
+	switch (eJumpDir)
+	{
+	case ETileDirection::DIR_Up:
+		return DIR_Right;
+	case ETileDirection::DIR_Down:
+		return DIR_Left;
+	case ETileDirection::DIR_Left:
+		return DIR_Up;
+	case ETileDirection::DIR_Right:
+		return DIR_Down;
+	default:
+		return DIR_None;
+	}
+}
+
+//AUSTile* AUSTile::GetTileInDirection(ETileDirection eDirection)
+//{
+//	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "No tile found");
+//	return adjacentTiles[0];
+//	/*switch (eDirection)
+//	{
+//	case ETileDirection::DIR_Up:
+//		return upTile != nullptr ? upTile : this;
+//	case ETileDirection::DIR_Down:
+//		return downTile != nullptr ? downTile : this;
+//	case ETileDirection::DIR_Left:
+//		return leftTile != nullptr ? leftTile : this;
+//	case ETileDirection::DIR_Right:
+//		return rightTile != nullptr ? rightTile : this;
+//	default:
+//		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "No tile found");
+//		return this;
+//	}*/
+//}

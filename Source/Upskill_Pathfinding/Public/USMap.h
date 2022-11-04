@@ -7,6 +7,17 @@
 #include "USMap.generated.h"
 
 
+USTRUCT(BlueprintType)
+struct FNodeRecord
+{
+	GENERATED_BODY()
+
+	AActor* node;
+	AActor* fromNode;
+	float costSoFar;
+	float estimatedTotalCost;
+};
+
 UENUM(BlueprintType)
 enum EPathfindingMethod
 {
@@ -53,9 +64,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	void RegisterAgent(AActor* aAgent);
-	void StartPathGen(FVector2D vPathTarget);
+	void StartPathGen(AActor* aPathTarget);
 
 private:
+	TArray<TArray<AActor*>> tiles;
 	TArray<AActor*> agents;
 
 };
