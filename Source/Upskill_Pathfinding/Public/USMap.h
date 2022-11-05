@@ -66,6 +66,9 @@ public:
 	void RegisterAgent(AActor* aAgent);
 	void StartPathGen(AActor* aPathTarget);
 
+	void AStar_ProcessNode(AActor* aNode, AActor* aFromNode, float fCostSoFar, float fEstimatedCost, TArray<FNodeRecord>* aNodeToAddTo);
+	void JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenList, TArray<FNodeRecord>* aClosedList, AActor* aPathTarget);
+
 private:
 	TArray<TArray<AActor*>> tiles;
 	TArray<AActor*> agents;

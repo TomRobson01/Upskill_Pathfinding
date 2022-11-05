@@ -480,212 +480,7 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 						}
 					}
 
-					#pragma region Jump Point Search Code
-					//
-					//	JUMP POINT SEARCH
-					//
-					// Get the direction we want to jump in
-					AUSTile* currentTileCheck = Cast<AUSTile>(bestNode.node);
-					ETileDirection jumpDir = Cast<AUSTile>(bestNode.fromNode)->GetDirectionToTile(Cast<AUSTile>(currentTileCheck));
-
-					int x = 0;
-					while (currentTileCheck != nullptr && x < 16)
-					{
-						AUSTile* nextTileCheck = nullptr;
-
-						AUSTile* leftTile		= GetDirectionTile(currentTileCheck, currentTileCheck->GetJumpLeft(jumpDir));
-						AUSTile* rightTile		= GetDirectionTile(currentTileCheck, currentTileCheck->GetJumpRight(jumpDir));
-						AUSTile* forwardsTile	= GetDirectionTile(currentTileCheck, jumpDir);
-
-						// First, check if our this nodes side connections are blocked - making them a forced neighbor
-						// Then, check if the node in our heading direction is a forced neighbor
-						// ...
-						// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
-
-
-						if (forwardsTile == nullptr || leftTile == nullptr || rightTile == nullptr  ||
-							forwardsTile->GetTileType() == ETileType::TILE_Trees || leftTile->GetTileType() == ETileType::TILE_Trees || rightTile->GetTileType() == ETileType::TILE_Trees ||
-							currentTileCheck == aPathTarget)
-						{
-							// We are a forced neighbor, fully process this node and add it to the open list
-							GEngine->AddOnScreenDebugMessage(-1, 60, FColor::White, "Forced neighbor");
-
-							// FULLY PROCESS THE NODE HERE
-							// Get the cost estimate for the end node
-							FNodeRecord endNode;
-							endNode.node = currentTileCheck;
-							endNode.fromNode = bestNode.node;
-							endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
-							endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
-
-							DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::Purple);
-							closedList.Add(bestNode);
-							openList.Add(endNode);
-							GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Purple, "Jump length: " + FString::FromInt(x));
-							break;
-						}
-						else
-						{
-							bool foundNeighborInSubjump = false;
-
-							#pragma region Subjumps
-							TArray<FVector> lJumpLine;
-							TArray<FVector> rJumpLine;
-
-							#pragma region LEFT SUBJUMP
-							AUSTile* currentTileCheckAlt = currentTileCheck;
-							ETileDirection jumpDirAlt = currentTileCheck->GetDirectionToTile(leftTile);
-							lJumpLine.Add(currentTileCheck->GetActorLocation());
-
-							int xx = 0;
-							while (currentTileCheckAlt != nullptr && xx < 16)
-							{
-								AUSTile* nextTileCheckAlt = nullptr;
-
-								AUSTile* leftTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpLeft(jumpDirAlt));
-								AUSTile* rightTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpRight(jumpDirAlt));
-								AUSTile* forwardsTileAlt = GetDirectionTile(currentTileCheckAlt, jumpDirAlt);
-
-								// First, check if our this nodes side connections are blocked - making them a forced neighbor
-								// Then, check if the node in our heading direction is a forced neighbor
-								// ...
-								// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
-
-								if (forwardsTileAlt == nullptr || leftTileAlt == nullptr || rightTileAlt == nullptr ||
-									forwardsTileAlt->GetTileType() == ETileType::TILE_Trees || leftTileAlt->GetTileType() == ETileType::TILE_Trees || rightTileAlt->GetTileType() == ETileType::TILE_Trees ||
-									currentTileCheckAlt == aPathTarget)
-								{
-									// We are a forced neighbor, fully process this node and add it to the open list
-
-									// FULLY PROCESS THE NODE HERE
-									// Get the cost estimate for the end node
-									FNodeRecord endNode;
-									endNode.node = currentTileCheckAlt;
-									endNode.fromNode = currentTileCheck;
-									endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
-									endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
-
-									FNodeRecord subJumpStartNode;
-									subJumpStartNode.node = currentTileCheck;
-									subJumpStartNode.fromNode = bestNode.node;
-									subJumpStartNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
-									subJumpStartNode.estimatedTotalCost = subJumpStartNode.costSoFar + FVector::Distance(subJumpStartNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
-
-									DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
-									closedList.Add(bestNode);
-									openList.Add(subJumpStartNode);
-									foundNeighborInSubjump = true;
-									break;
-								}
-								else
-								{
-									// Continue sub-jump
-									nextTileCheckAlt = forwardsTileAlt;
-									lJumpLine.Add(nextTileCheckAlt->GetActorLocation());
-								}
-
-								currentTileCheckAlt = nextTileCheckAlt;
-
-								xx++;
-							}
-							if (xx >= 16)
-								GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
-							#pragma endregion
-
-							#pragma region RIGHT SUBJUMP
-							currentTileCheckAlt = currentTileCheck;
-							jumpDirAlt = currentTileCheck->GetDirectionToTile(rightTile);
-							rJumpLine.Add(currentTileCheck->GetActorLocation());
-
-							xx = 0;
-							while (currentTileCheckAlt != nullptr && xx < 16)
-							{
-								AUSTile* nextTileCheckAlt = nullptr;
-
-								AUSTile* leftTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpLeft(jumpDirAlt));
-								AUSTile* rightTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpRight(jumpDirAlt));
-								AUSTile* forwardsTileAlt = GetDirectionTile(currentTileCheckAlt, jumpDirAlt);
-
-								// First, check if our this nodes side connections are blocked - making them a forced neighbor
-								// Then, check if the node in our heading direction is a forced neighbor
-								// ...
-								// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
-
-								if (forwardsTileAlt == nullptr || leftTileAlt == nullptr || rightTileAlt == nullptr ||
-									forwardsTileAlt->GetTileType() == ETileType::TILE_Trees || leftTileAlt->GetTileType() == ETileType::TILE_Trees || rightTileAlt->GetTileType() == ETileType::TILE_Trees ||
-									currentTileCheckAlt == aPathTarget)
-								{
-									// We are a forced neighbor, fully process this node and add it to the open list
-
-									// FULLY PROCESS THE NODE HERE
-									// Get the cost estimate for the end node
-									FNodeRecord endNode;
-									endNode.node = currentTileCheck;
-									endNode.fromNode = bestNode.node;
-									endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
-									endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
-
-									DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
-									closedList.Add(bestNode);
-									openList.Add(endNode);
-									foundNeighborInSubjump = true;
-									break;
-								}
-								else
-								{
-									// Continue sub-jump
-									nextTileCheckAlt = forwardsTileAlt;
-									rJumpLine.Add(nextTileCheckAlt->GetActorLocation());
-								}
-
-								currentTileCheckAlt = nextTileCheckAlt;
-
-								xx++;
-							}
-							if (xx >= 16)
-								GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
-							#pragma endregion
-
-							#pragma region Sub-Jump Debug Lines
-							// Draw sub-jump lines for debugging
-							// Left
-							if (lJumpLine.Num() > 1)
-							{
-								FVector lLastPoint = lJumpLine[0];
-								for (FVector p : lJumpLine)
-								{
-									DrawDebugLine(GetWorld(), FVector(lLastPoint.X, lLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
-									lLastPoint = p;
-								}
-							}
-
-							// Right
-							if (rJumpLine.Num() > 1)
-							{
-								FVector rLastPoint = rJumpLine[0];
-								for (FVector p : rJumpLine)
-								{
-									DrawDebugLine(GetWorld(), FVector(rLastPoint.X, rLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
-									rLastPoint = p;
-								}
-							}
-							#pragma endregion
-							#pragma endregion
-
-							// Continue jump
-							nextTileCheck = forwardsTile;
-							DrawDebugSphere(GetWorld(), currentTileCheck->GetActorLocation(), 25, 10, FColor::Blue, true);
-						}
-						
-						currentTileCheck = nextTileCheck;
-
-						x++;
-					}
-					if (x >= 16)
-					{
-						GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
-					}
-					#pragma endregion
+					JPS_InitiateJump(bestNode, &openList, &closedList, aPathTarget);
 				}
 
 				// Work back along the path to get our final result
@@ -763,4 +558,208 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 	
 
 }
+
+void AUSMap::AStar_ProcessNode(AActor* aNode, AActor* aFromNode, float fCostSoFar, float fEstimatedCost, TArray<FNodeRecord>* aNodeToAddTo)
+{
+	FNodeRecord node;
+	node.node = aNode;
+	node.fromNode = aFromNode;
+	node.costSoFar = fCostSoFar;
+	node.estimatedTotalCost = fEstimatedCost;
+
+	aNodeToAddTo->Add(node);
+}
+
+void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenList, TArray<FNodeRecord>* aClosedList, AActor* aPathTarget)
+{
+	//
+	//	JUMP POINT SEARCH
+	//
+	// Get the direction we want to jump in 
+	AUSTile* currentTileCheck = Cast<AUSTile>(bestNode.node);
+	ETileDirection jumpDir = Cast<AUSTile>(bestNode.fromNode)->GetDirectionToTile(Cast<AUSTile>(currentTileCheck));
+
+	int x = 0;
+	while (currentTileCheck != nullptr && x < 16)
+	{
+		AUSTile* nextTileCheck = nullptr;
+
+		AUSTile* leftTile = GetDirectionTile(currentTileCheck, currentTileCheck->GetJumpLeft(jumpDir));
+		AUSTile* rightTile = GetDirectionTile(currentTileCheck, currentTileCheck->GetJumpRight(jumpDir));
+		AUSTile* forwardsTile = GetDirectionTile(currentTileCheck, jumpDir);
+
+		// First, check if our this nodes side connections are blocked - making them a forced neighbor
+		// Then, check if the node in our heading direction is a forced neighbor
+		// ...
+		// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
+
+
+		if (forwardsTile == nullptr || leftTile == nullptr || rightTile == nullptr ||
+			forwardsTile->GetTileType() == ETileType::TILE_Trees || leftTile->GetTileType() == ETileType::TILE_Trees || rightTile->GetTileType() == ETileType::TILE_Trees ||
+			currentTileCheck == aPathTarget)
+		{
+			// We are a forced neighbor, fully process this node and add it to the open list
+			GEngine->AddOnScreenDebugMessage(-1, 60, FColor::White, "Forced neighbor");
+
+			// FULLY PROCESS THE NODE HERE
+			// Get the cost estimate for the end node
+			AStar_ProcessNode(currentTileCheck, bestNode.node, bestNode.costSoFar + 1, bestNode.costSoFar + FVector::Distance(bestNode.node->GetActorLocation(), aPathTarget->GetActorLocation()), aOpenList);
+
+			aClosedList->Add(bestNode);
+			GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Purple, "Jump length: " + FString::FromInt(x));
+			break;
+		}
+		else
+		{
+			#pragma region Subjumps
+			TArray<FVector> lJumpLine;
+			TArray<FVector> rJumpLine;
+
+			#pragma region LEFT SUBJUMP
+			AUSTile* currentTileCheckAlt = currentTileCheck;
+			ETileDirection jumpDirAlt = currentTileCheck->GetDirectionToTile(leftTile);
+			lJumpLine.Add(currentTileCheck->GetActorLocation());
+
+			int xx = 0;
+			while (currentTileCheckAlt != nullptr && xx < 16)
+			{
+				AUSTile* nextTileCheckAlt = nullptr;
+
+				AUSTile* leftTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpLeft(jumpDirAlt));
+				AUSTile* rightTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpRight(jumpDirAlt));
+				AUSTile* forwardsTileAlt = GetDirectionTile(currentTileCheckAlt, jumpDirAlt);
+
+				// First, check if our this nodes side connections are blocked - making them a forced neighbor
+				// Then, check if the node in our heading direction is a forced neighbor
+				// ...
+				// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
+
+				if (forwardsTileAlt == nullptr || leftTileAlt == nullptr || rightTileAlt == nullptr ||
+					forwardsTileAlt->GetTileType() == ETileType::TILE_Trees || leftTileAlt->GetTileType() == ETileType::TILE_Trees || rightTileAlt->GetTileType() == ETileType::TILE_Trees ||
+					currentTileCheckAlt == aPathTarget)
+				{
+					// We are a forced neighbor, fully process this node and add it to the open list
+
+					// FULLY PROCESS THE NODE HERE
+					// Get the cost estimate for the end node
+					FNodeRecord endNode;
+					endNode.node = currentTileCheck;
+					endNode.fromNode = bestNode.node;
+					endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
+					endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
+
+					DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
+					aClosedList->Add(bestNode);
+					aOpenList->Add(endNode);
+					break;
+				}
+				else
+				{
+					// Continue sub-jump
+					nextTileCheckAlt = forwardsTileAlt;
+					lJumpLine.Add(nextTileCheckAlt->GetActorLocation());
+				}
+
+				currentTileCheckAlt = nextTileCheckAlt;
+
+				xx++;
+			}
+			if (xx >= 16)
+				GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
+			#pragma endregion
+
+			#pragma region RIGHT SUBJUMP
+			currentTileCheckAlt = currentTileCheck;
+			jumpDirAlt = currentTileCheck->GetDirectionToTile(rightTile);
+			rJumpLine.Add(currentTileCheck->GetActorLocation());
+
+			xx = 0;
+			while (currentTileCheckAlt != nullptr && xx < 16)
+			{
+				AUSTile* nextTileCheckAlt = nullptr;
+
+				AUSTile* leftTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpLeft(jumpDirAlt));
+				AUSTile* rightTileAlt = GetDirectionTile(currentTileCheckAlt, currentTileCheckAlt->GetJumpRight(jumpDirAlt));
+				AUSTile* forwardsTileAlt = GetDirectionTile(currentTileCheckAlt, jumpDirAlt);
+
+				// First, check if our this nodes side connections are blocked - making them a forced neighbor
+				// Then, check if the node in our heading direction is a forced neighbor
+				// ...
+				// Forced neighbors are nodes where one of our neighbors is un-traversable, and thus forces us to stop our jump and fully process this node
+
+				if (forwardsTileAlt == nullptr || leftTileAlt == nullptr || rightTileAlt == nullptr ||
+					forwardsTileAlt->GetTileType() == ETileType::TILE_Trees || leftTileAlt->GetTileType() == ETileType::TILE_Trees || rightTileAlt->GetTileType() == ETileType::TILE_Trees ||
+					currentTileCheckAlt == aPathTarget)
+				{
+					// We are a forced neighbor, fully process this node and add it to the open list
+
+					// FULLY PROCESS THE NODE HERE
+					// Get the cost estimate for the end node
+					FNodeRecord endNode;
+					endNode.node = currentTileCheck;
+					endNode.fromNode = bestNode.node;
+					endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
+					endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
+
+					DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
+					aClosedList->Add(bestNode);
+					aOpenList->Add(endNode);
+					break;
+				}
+				else
+				{
+					// Continue sub-jump
+					nextTileCheckAlt = forwardsTileAlt;
+					rJumpLine.Add(nextTileCheckAlt->GetActorLocation());
+				}
+
+				currentTileCheckAlt = nextTileCheckAlt;
+
+				xx++;
+			}
+			if (xx >= 16)
+				GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
+			#pragma endregion
+
+			#pragma region Sub-Jump Debug Lines
+			// Draw sub-jump lines for debugging
+			// Left
+			if (lJumpLine.Num() > 1)
+			{
+				FVector lLastPoint = lJumpLine[0];
+				for (FVector p : lJumpLine)
+				{
+					DrawDebugLine(GetWorld(), FVector(lLastPoint.X, lLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
+					lLastPoint = p;
+				}
+			}
+
+			// Right
+			if (rJumpLine.Num() > 1)
+			{
+				FVector rLastPoint = rJumpLine[0];
+				for (FVector p : rJumpLine)
+				{
+					DrawDebugLine(GetWorld(), FVector(rLastPoint.X, rLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
+					rLastPoint = p;
+				}
+			}
+			#pragma endregion
+			#pragma endregion
+
+			// Continue jump
+			nextTileCheck = forwardsTile;
+			DrawDebugSphere(GetWorld(), currentTileCheck->GetActorLocation(), 25, 10, FColor::Blue, true);
+		}
+
+		currentTileCheck = nextTileCheck;
+
+		x++;
+	}
+	if (x >= 16)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
+	}
+}
+
 
