@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "USMap.h"
 #include "USAgent.h"
+#include "Components/ArrowComponent.h"
 #include "USTile.generated.h"
 
 UENUM(BlueprintType)
@@ -57,11 +58,21 @@ public:
 	ETileDirection GetJumpRight(ETileDirection eJumpDir);
 	AUSTile* GetTileInDirection(ETileDirection eDirection);
 
+	void Flowfield_SetTargetTile();
+
+	void SetFFCost(int iCost) { ffCost = iCost; };
+	int GetFFCost() { return ffCost; };
+	void SetBestCost(int iBestCost) { bestCost = iBestCost; };
+	int GetBestCost() { return bestCost; };
+	AUSTile* GetFlowfieldTargetTile() { return flowfieldTargetTile; };
+
+	void SetArrowDir(ETileDirection eDir);
+
+
 	UFUNCTION(BlueprintCallable, Category = "US Tile")
 	void SendPathDesitnationNotify();
 
 	TArray<AUSTile*> GetAdjacentTiles() { return adjacentTiles; };
-
 
 	AUSTile* upTile;
 	AUSTile* downTile;
@@ -77,7 +88,13 @@ private:
 	AUSMap* parentMap;	
 
 	UStaticMeshComponent* TileArtSMComponent;
+	UArrowComponent* FFArrow;
+
+	AUSTile* flowfieldTargetTile;
 
 	TArray<AUSTile*> adjacentTiles;
+
+	int ffCost = 9999;
+	int bestCost = 0;
 
 };

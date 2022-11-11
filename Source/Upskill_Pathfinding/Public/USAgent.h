@@ -32,9 +32,13 @@ public:
 
 	void SetupAgent(AUSMap* aMap, AActor* aStartTile);
 	void NavigatePath(float fDeltaTime);
-	void SetPath(TArray<FVector2D> vPath, AActor* aDestinationTile) { path = vPath; currentPathIndex = 0; currentTile = aDestinationTile; DrawPathViz(); }
+	void SetPath(TArray<FVector2D> vPath, AActor* aDestinationTile) { path = vPath; currentPathIndex = 0; currentTile = aDestinationTile; DrawPathViz(); usingFlowField = false;}
+	void SetFlowFieldPath(AActor* aDestinationTile) { ffDestinationTile = aDestinationTile; usingFlowField = true; }
+
+	void ToggleShowPathLine() { ShowPathLine = !ShowPathLine; };
 
 	AActor* currentTile;
+	AActor* ffDestinationTile;
 
 protected:
 	// Called when the game starts or when spawned
@@ -46,6 +50,9 @@ protected:
 
 private:
 	TArray<FVector2D> path;
-	TArray<AActor*> pathMarkers;
+	TArray<AActor*> pathMarkers; 
 	int currentPathIndex;
+	bool usingFlowField;
+
+	bool ShowPathLine;
 };

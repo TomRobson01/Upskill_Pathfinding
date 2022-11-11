@@ -2,6 +2,7 @@
 
 
 #include "USAgent.h"
+#include "USTile.h"
 #include "DrawDebugHelpers.h"
 
 
@@ -29,6 +30,8 @@ void AUSAgent::SetupAgent(AUSMap* aMap, AActor* aStartTile)
 	currentTile = aStartTile;
 	map = aMap;
 	map->RegisterAgent(this);
+
+	stopDistance *= FMath::RandRange(.9f, 1.1f);	// Slight bit of variation to stop distances to prevent clumping
 }
 
 /// <summary>
@@ -37,25 +40,59 @@ void AUSAgent::SetupAgent(AUSMap* aMap, AActor* aStartTile)
 /// <param name="fDeltaTime"></param>
 void AUSAgent::NavigatePath(float fDeltaTime)
 {
-	if (path.Num() > 0)
+	switch(usingFlowField)
 	{
-		if (currentPathIndex + 1 < path.Num())
+	case true:
+		// Flowfield navigation
+		if (ffDestinationTile != nullptr)
 		{
-			// Turn to face the next path node
-			FaceLocation(path[currentPathIndex + 1]);
+			// Move towards our current tile
 			FVector currentLocation = GetActorLocation();
+			FVector currentTargetLocation = currentTile->GetActorLocation();
+			FaceLocation(FVector2D(currentTargetLocation.X, currentTargetLocation.Y));
 			SetActorLocation(currentLocation + (GetActorForwardVector() * moveSpeed));
 
-			if (FVector2D::Distance(FVector2D(currentLocation.X, currentLocation.Y), path[currentPathIndex + 1]) < stopDistance)
+			// If we're within switch distance, switch our current tile to it's FF starget tile
+			if (FVector2D::Distance(FVector2D(currentLocation.X, currentLocation.Y), FVector2D(currentTargetLocation.X, currentTargetLocation.Y)) < stopDistance)
 			{
-				currentPathIndex++;
+				if (currentTile == ffDestinationTile)
+				{
+					// We've reached our destination, clear the variable to stop the loop
+					ffDestinationTile = nullptr;
+				}
+				else
+				{
+					// Get the next tile
+					currentTile = Cast<AUSTile>(currentTile)->GetFlowfieldTargetTile();
+				}
 			}
 		}
-		else
+		
+
+		break;
+	default:
+		// Normal path navigation
+		if (path.Num() > 0)
 		{
-			// Reached destination, end path
-			path.Empty();
+			if (currentPathIndex + 1 < path.Num())
+			{
+				// Turn to face the next path node
+				FaceLocation(path[currentPathIndex + 1]);
+				FVector currentLocation = GetActorLocation();
+				SetActorLocation(currentLocation + (GetActorForwardVector() * moveSpeed));
+
+				if (FVector2D::Distance(FVector2D(currentLocation.X, currentLocation.Y), path[currentPathIndex + 1]) < stopDistance)
+				{
+					currentPathIndex++;
+				}
+			}
+			else
+			{
+				// Reached destination, end path
+				path.Empty();
+			}
 		}
+		break;
 	}
 }
 
@@ -100,7 +137,9 @@ void AUSAgent::DrawPathViz()
 			marker->SetActorLocation(FVector(p.X, p.Y, 0));
 			pathMarkers.Push(marker);
 		}
-		DrawDebugLine(GetWorld(), FVector(lastPoint.X, lastPoint.Y, debugLineHeight), FVector(p.X, p.Y, debugLineHeight), FColor::Purple, true);
+		if (ShowPathLine)
+			DrawDebugLine(GetWorld(), FVector(lastPoint.X, lastPoint.Y, debugLineHeight), FVector(p.X, p.Y, debugLineHeight), FColor::Purple, true);
+
 		lastPoint = p;
 	}
 }

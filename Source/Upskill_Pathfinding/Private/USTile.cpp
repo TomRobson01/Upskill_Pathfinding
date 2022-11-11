@@ -19,14 +19,26 @@ void AUSTile::BeginPlay()
 	Super::BeginPlay();
 
 	// Grab any components we need
-	TArray<UStaticMeshComponent*> Components;
-	GetComponents<UStaticMeshComponent>(Components); 
-	for (int32 i = 0; i < Components.Num(); i++) 
+	// Static Mesh Component
+	TArray<UStaticMeshComponent*> SMComponents;
+	GetComponents<UStaticMeshComponent>(SMComponents);
+	for (int32 i = 0; i < SMComponents.Num(); i++)
 	{ 
-		UStaticMeshComponent* StaticMeshComponent = Components[i]; 
+		UStaticMeshComponent* StaticMeshComponent = SMComponents[i];
 	}
 
-	TileArtSMComponent = Components[1];
+	TileArtSMComponent = SMComponents[1];
+
+
+	// Arrow Component
+	TArray<UArrowComponent*> ArrComponents;
+	GetComponents<UArrowComponent>(ArrComponents);
+	for (int32 i = 0; i < ArrComponents.Num(); i++)
+	{
+		UArrowComponent* StaticMeshComponent = ArrComponents[i];
+	}
+
+	FFArrow = ArrComponents[0];
 }
 
 /// <summary>
@@ -66,6 +78,7 @@ void AUSTile::SetupTile(AUSMap* aParentMap, int iTypeID)
 		// Spawn tile art
 		TileArtSMComponent->SetStaticMesh(TreeTileArt[FMath::RandRange(0, TreeTileArt.Num() - 1)]);
 		TileArtSMComponent->SetWorldRotation(FRotator(0, FMath::RandRange(0, 360), 0));
+		bestCost = 9999;
 		break;
 	}
 }
@@ -102,19 +115,19 @@ void AUSTile::AttemptTileConnect(AUSTile* aTargetTile, ETileDirection eDirection
 	{
 	case ETileDirection::DIR_Up:
 		upTile = aTargetTile;
-		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::White, true, -1.f, (uint8)'\000', 5.f);
+		//DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::White, true, -1.f, (uint8)'\000', 5.f);
 		break;
 	case ETileDirection::DIR_Down:
 		downTile = aTargetTile;
-		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Blue, true, -1.f, (uint8)'\000', 5.f);
+		//DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Blue, true, -1.f, (uint8)'\000', 5.f);
 		break;
 	case ETileDirection::DIR_Left:
 		leftTile = aTargetTile;
-		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Red, true, -1.f, (uint8)'\000', 5.f);
+		//DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Red, true, -1.f, (uint8)'\000', 5.f);
 		break;
 	case ETileDirection::DIR_Right:
 		rightTile = aTargetTile;
-		DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Green, true, -1.f, (uint8)'\000', 5.f);
+		//DrawDebugLine(GetWorld(), FVector(myLoc.X, myLoc.Y, myLoc.Z + 20), FVector(adjLoc.X, adjLoc.Y, adjLoc.Z + 20), FColor::Green, true, -1.f, (uint8)'\000', 5.f);
 		break;
 	default:
 		break;
@@ -169,22 +182,41 @@ ETileDirection AUSTile::GetJumpRight(ETileDirection eJumpDir)
 	}
 }
 
-//AUSTile* AUSTile::GetTileInDirection(ETileDirection eDirection)
-//{
-//	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "No tile found");
-//	return adjacentTiles[0];
-//	/*switch (eDirection)
-//	{
-//	case ETileDirection::DIR_Up:
-//		return upTile != nullptr ? upTile : this;
-//	case ETileDirection::DIR_Down:
-//		return downTile != nullptr ? downTile : this;
-//	case ETileDirection::DIR_Left:
-//		return leftTile != nullptr ? leftTile : this;
-//	case ETileDirection::DIR_Right:
-//		return rightTile != nullptr ? rightTile : this;
-//	default:
-//		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "No tile found");
-//		return this;
-//	}*/
-//}
+void AUSTile::SetArrowDir(ETileDirection eDir)
+{
+	switch (eDir)
+	{
+	case ETileDirection::DIR_Up:
+		FFArrow->SetWorldRotation(FRotator(0, 90, 0));
+		FFArrow->SetVisibility(true);
+		break;
+	case ETileDirection::DIR_Down:
+		FFArrow->SetWorldRotation(FRotator(0, 270, 0));
+		FFArrow->SetVisibility(true);
+		break;
+	case ETileDirection::DIR_Left:
+		FFArrow->SetWorldRotation(FRotator(0, 0, 0));
+		FFArrow->SetVisibility(true);
+		break;
+	case ETileDirection::DIR_Right:
+		FFArrow->SetWorldRotation(FRotator(0, 180, 0));
+		FFArrow->SetVisibility(true);
+		break;
+	default:
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "No dir set");
+		break;
+	}
+}
+
+void AUSTile::Flowfield_SetTargetTile()
+{
+	int bestCostFound = -1;
+	for (AUSTile* tile : adjacentTiles)
+	{
+		if (tile->GetBestCost() < bestCostFound || bestCostFound == -1)
+		{
+			bestCostFound = tile->GetBestCost();
+			flowfieldTargetTile = tile;
+		}
+	}
+}

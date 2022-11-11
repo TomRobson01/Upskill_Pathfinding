@@ -65,9 +65,9 @@ void AUSMap::BeginPlay()
 
 			// Try to link the tile to it's adjacent neighbors in each cardinal direction
 			if (x > 0)
-				tile->AttemptTileConnect(Cast<AUSTile>(tiles[x - 1][y]), ETileDirection::DIR_Left);
+				tile->AttemptTileConnect(Cast<AUSTile>(tiles[x - 1][y]), ETileDirection::DIR_Right);
 			if (x < mapWidth - 1)
-				tile->AttemptTileConnect(Cast<AUSTile>(tiles[x + 1][y]), ETileDirection::DIR_Right);
+				tile->AttemptTileConnect(Cast<AUSTile>(tiles[x + 1][y]), ETileDirection::DIR_Left);
 			if (y > 0)
 				tile->AttemptTileConnect(Cast<AUSTile>(tiles[x][y - 1]), ETileDirection::DIR_Down);
 			if (y < mapHeight - 1)
@@ -134,9 +134,6 @@ TArray<FString> AUSMap::ReadStringFromFile(FString FilePath)
 void AUSMap::RegisterAgent(AActor* aAgent)
 {
 	agents.Push(aAgent);
-
-	if (GEngine)
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Yellow, "Agents registered: " + FString::FromInt(agents.Num()));
 }
 
 AUSTile* GetDirectionTile(AUSTile* aRefTile, ETileDirection eDir)
@@ -162,8 +159,6 @@ AUSTile* GetDirectionTile(AUSTile* aRefTile, ETileDirection eDir)
 /// <param name="vPathTarget">Destination for each path.</param>
 void AUSMap::StartPathGen(AActor* aPathTarget)
 {
-	if (GEngine)
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, "Path notify recieved!");
 
 	FVector vPathTarget = aPathTarget->GetActorLocation();
 	FlushPersistentDebugLines(GetWorld());
@@ -227,10 +222,6 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 					if (current.node == Cast<AUSTile>(aPathTarget))
 					{
 						// DONE	!
-						if (GEngine)
-						{
-							GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, "Path found!");
-						} 
 						openList.Empty();
 						break;
 					}
@@ -262,20 +253,22 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 						endNode.costSoFar = current.costSoFar + 1; // Cost = 1
 						endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(connection->GetActorLocation(), aPathTarget->GetActorLocation());
 						
-						DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost));
-						DrawDebugSphere(GetWorld(), endNode.node->GetActorLocation(), 5, 10, FColor::White, true);
+						if (ShowAStarCosts)
+							DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost));
 
 
 						// If we make it here, we can add our node to the open list
-						DrawDebugSphere(GetWorld(), endNode.node->GetActorLocation(), 25, 10, FColor::Cyan, true);
 						pointsSampled++;
 						cachedRecords.Add(endNode);
+						if (ShowAStarNodes)
+							DrawDebugSphere(GetWorld(), endNode.node->GetActorLocation(), 25, 10, FColor::Cyan, true);
 					}
 
 					// We've looked at everything for this node, so add it to the closed list and remove it from the open list
-					DrawDebugSphere(GetWorld(), current.node->GetActorLocation(), 20, 10, FColor::Red, true);
 					openList.Empty();
 					closedList.Push(current);
+					if (ShowAStarNodes)
+						DrawDebugSphere(GetWorld(), current.node->GetActorLocation(), 20, 10, FColor::Red, true);
 
 					// Add all the records we wish to add
 					for (FNodeRecord r : cachedRecords)
@@ -309,8 +302,9 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 
 					// Add this node to the path
 					FVector nodeLocation = current.node->GetActorLocation();
-					DrawDebugSphere(GetWorld(), nodeLocation, 35, 10, FColor::Green, true);
 					path.Push(FVector2D(nodeLocation.X, nodeLocation.Y));
+					if (ShowAStarNodes)
+						DrawDebugSphere(GetWorld(), nodeLocation, 35, 10, FColor::Green, true);
 
 					// Check if there is an entry in the closed list with our current node's end node
 					for (FNodeRecord node : closedList)
@@ -396,10 +390,6 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 					if (current.node == Cast<AUSTile>(aPathTarget))
 					{
 						// DONE	!
-						if (GEngine)
-						{
-							GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, "Path found!");
-						}
 						openList.Empty();
 						break;
 					}
@@ -433,8 +423,6 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 						endNode.fromNode = current.node;
 						endNode.costSoFar = current.costSoFar + 1; // Cost = 1
 						endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(connection->GetActorLocation(), aPathTarget->GetActorLocation());
-
-						DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost));
 
 
 						// If we make it here, we can add our node to the open list
@@ -490,8 +478,10 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 
 					// Add this node to the path
 					FVector nodeLocation = current.node->GetActorLocation();
-					DrawDebugSphere(GetWorld(), nodeLocation, 35, 10, FColor::Green, true);
 					path.Push(FVector2D(nodeLocation.X, nodeLocation.Y));
+
+					if (ShowJPSNodes)
+						DrawDebugSphere(GetWorld(), nodeLocation, 35, 10, FColor::Green, true);
 
 					// Check if there is an entry in the closed list with our current node's end node
 					for (FNodeRecord node : closedList)
@@ -521,6 +511,63 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 
 	case PATHFIND_Flow:
 		#pragma region ====== Flowfields ================
+
+		// Flowfields are genreated in 3 stages:
+		//	1. The cost field
+		//	2. The integration field
+		//	3. The flow field
+
+		// Loop through each tile on the map, and calculate the cost field
+		for (TArray<AActor*> row : tiles)
+		{
+			for (AActor* aTile : row)
+			{
+				AUSTile* tile = Cast<AUSTile>(aTile);
+
+				// Generate a cost based on what tile this is - if it's the goal, the cost is 0. If it's an obstacle, the cost is unchanged (left at max). Otherwise, we set it at 1.
+				// If we have different terrain types, we can set this here too
+				if (tile->GetTileType() != ETileType::TILE_Trees)
+				{
+					tile->SetFFCost(tile == aPathTarget ? 0 : 1);
+				}
+				// DEBUG: Show cost field
+				if (ShowCostField)
+					DrawDebugString(GetWorld(), tile->GetActorLocation(), "Cost: " + FString::FromInt(tile->GetFFCost()), 0, FColor::White);
+
+			}
+		}
+
+		// Once we have our cost field, we then perform a simplified Dirjska's algorithm to generate the integration field
+		Flowfield_GenerateIntegrationField(aPathTarget);
+
+		// Now, we generate our flowfields by having each tile point to it's lowert cost adjacent
+		for (TArray<AActor*> row : tiles)
+		{
+			for (AActor* aTile : row)
+			{
+				AUSTile* tile = Cast<AUSTile>(aTile);
+				tile->Flowfield_SetTargetTile();
+
+				// DEBUG: Set arrow dir to the flow field direction
+				if (ShowFlowField)
+				{
+					ETileDirection dir = tile->GetDirectionToTile(tile->GetFlowfieldTargetTile());
+					tile->SetArrowDir(dir);
+				}
+			}
+		}
+
+
+		// Now that we have our flowfield generated, start the path for all our agents
+		for (AActor* agent : agents)
+		{
+			if (agent != nullptr)
+			{
+				AUSAgent* a = Cast<AUSAgent>(agent);
+				a->SetFlowFieldPath(aPathTarget);
+			}
+		}
+
 		break;
 		#pragma endregion
 
@@ -547,9 +594,6 @@ void AUSMap::StartPathGen(AActor* aPathTarget)
 				// Push the path to the agent
 				agentClass->SetPath(path, aPathTarget);
 
-
-				if (GEngine)
-					GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, "Set path");
 			}
 		}
 		break;
@@ -599,14 +643,12 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 			currentTileCheck == aPathTarget)
 		{
 			// We are a forced neighbor, fully process this node and add it to the open list
-			GEngine->AddOnScreenDebugMessage(-1, 60, FColor::White, "Forced neighbor");
 
 			// FULLY PROCESS THE NODE HERE
 			// Get the cost estimate for the end node
 			AStar_ProcessNode(currentTileCheck, bestNode.node, bestNode.costSoFar + 1, bestNode.costSoFar + FVector::Distance(bestNode.node->GetActorLocation(), aPathTarget->GetActorLocation()), aOpenList);
 
 			aClosedList->Add(bestNode);
-			GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Purple, "Jump length: " + FString::FromInt(x));
 			break;
 		}
 		else
@@ -621,7 +663,7 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 			lJumpLine.Add(currentTileCheck->GetActorLocation());
 
 			int xx = 0;
-			while (currentTileCheckAlt != nullptr && xx < 16)
+			while (currentTileCheckAlt != nullptr && xx < MAX_JPS_JUMP)
 			{
 				AUSTile* nextTileCheckAlt = nullptr;
 
@@ -648,7 +690,6 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 					endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
 					endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
 
-					DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
 					aClosedList->Add(bestNode);
 					aOpenList->Add(endNode);
 					break;
@@ -664,7 +705,7 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 
 				xx++;
 			}
-			if (xx >= 16)
+			if (xx >= MAX_JPS_JUMP)
 				GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
 			#pragma endregion
 
@@ -674,7 +715,7 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 			rJumpLine.Add(currentTileCheck->GetActorLocation());
 
 			xx = 0;
-			while (currentTileCheckAlt != nullptr && xx < 16)
+			while (currentTileCheckAlt != nullptr && xx < MAX_JPS_JUMP)
 			{
 				AUSTile* nextTileCheckAlt = nullptr;
 
@@ -701,7 +742,6 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 					endNode.costSoFar = bestNode.costSoFar + 1; // Cost = 1
 					endNode.estimatedTotalCost = endNode.costSoFar + FVector::Distance(endNode.node->GetActorLocation(), aPathTarget->GetActorLocation());
 
-					DrawDebugString(GetWorld(), endNode.node->GetActorLocation(), "Cost: " + FString::FromInt(endNode.estimatedTotalCost), 0, FColor::White);
 					aClosedList->Add(bestNode);
 					aOpenList->Add(endNode);
 					break;
@@ -717,31 +757,34 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 
 				xx++;
 			}
-			if (xx >= 16)
+			if (xx >= MAX_JPS_JUMP)
 				GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, "Infinite loop or massive jump found");
 			#pragma endregion
 
 			#pragma region Sub-Jump Debug Lines
-			// Draw sub-jump lines for debugging
-			// Left
-			if (lJumpLine.Num() > 1)
+			// DEBUG: Draw sub-jump lines for debugging
+			if (ShowJPSNodes)
 			{
-				FVector lLastPoint = lJumpLine[0];
-				for (FVector p : lJumpLine)
+				// Left
+				if (lJumpLine.Num() > 1)
 				{
-					DrawDebugLine(GetWorld(), FVector(lLastPoint.X, lLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
-					lLastPoint = p;
+					FVector lLastPoint = lJumpLine[0];
+					for (FVector p : lJumpLine)
+					{
+						DrawDebugLine(GetWorld(), FVector(lLastPoint.X, lLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
+						lLastPoint = p;
+					}
 				}
-			}
 
-			// Right
-			if (rJumpLine.Num() > 1)
-			{
-				FVector rLastPoint = rJumpLine[0];
-				for (FVector p : rJumpLine)
+				// Right
+				if (rJumpLine.Num() > 1)
 				{
-					DrawDebugLine(GetWorld(), FVector(rLastPoint.X, rLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
-					rLastPoint = p;
+					FVector rLastPoint = rJumpLine[0];
+					for (FVector p : rJumpLine)
+					{
+						DrawDebugLine(GetWorld(), FVector(rLastPoint.X, rLastPoint.Y, 5), FVector(p.X, p.Y, 5), FColor::White, true);
+						rLastPoint = p;
+					}
 				}
 			}
 			#pragma endregion
@@ -749,7 +792,8 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 
 			// Continue jump
 			nextTileCheck = forwardsTile;
-			DrawDebugSphere(GetWorld(), currentTileCheck->GetActorLocation(), 25, 10, FColor::Blue, true);
+			if (ShowJPSNodes)
+				DrawDebugSphere(GetWorld(), currentTileCheck->GetActorLocation(), 25, 10, FColor::Blue, true);
 		}
 
 		currentTileCheck = nextTileCheck;
@@ -762,4 +806,60 @@ void AUSMap::JPS_InitiateJump(FNodeRecord bestNode, TArray<FNodeRecord>* aOpenLi
 	}
 }
 
+void AUSMap::Flowfield_GenerateIntegrationField(AActor* aPathTarget)
+{
 
+	// Start an open list, adding our destination to begin with
+	// In that list, loop through all connected tiles, and set their "bestCost" to the current tiles bestCost, plus their base cost
+
+	TArray<AUSTile*> openList;
+	TArray<AUSTile*> closedList;
+
+	openList.Add(Cast<AUSTile>(aPathTarget));
+
+	while (openList.Num() > 0)
+	{
+		AUSTile* current = openList[0];
+		TArray<AUSTile*> adjacentTiles = current->GetAdjacentTiles();
+
+		for (AUSTile* tile : adjacentTiles)
+		{
+			if (!closedList.Contains(tile))
+			{
+				if (tile->GetTileType() != ETileType::TILE_Trees)
+				{
+					tile->SetBestCost(current->GetBestCost() + tile->GetFFCost());
+					openList.Add(tile);
+				}
+			}
+		}
+		// Once a node is processed, add it to the closed list
+		closedList.Add(current);
+		openList.Remove(current);
+	}
+
+	// DEBUG: display our integration field
+	if (ShowIntegrationField)
+	{
+		for (TArray<AActor*> row : tiles)
+		{
+			for (AActor* aTile : row)
+			{
+				AUSTile* tile = Cast<AUSTile>(aTile);
+				DrawDebugString(GetWorld(), tile->GetActorLocation(), "Cost: " + FString::FromInt(tile->GetBestCost()), 0, FColor::White);
+
+			}
+		}
+	}
+}
+
+void AUSMap::Debug_TogglePathlines()
+{
+	for (AActor* agent : agents)
+	{
+		if (agent != nullptr)
+		{
+			Cast<AUSAgent>(agent)->ToggleShowPathLine();
+		}
+	}
+}
